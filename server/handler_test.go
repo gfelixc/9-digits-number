@@ -3,7 +3,6 @@ package server_test
 import (
 	"bytes"
 	"context"
-	"fmt"
 	"io"
 	"testing"
 
@@ -15,40 +14,21 @@ type spyProcessor struct {
 	linesRead int
 }
 
-func (sp *spyProcessor) cancelAfterNLinesRead(n int, cancel func()) func(s string) {
-	return func(s string) {
+func (sp *spyProcessor) cancelAfterNLinesRead(n int, cancel func()) func(s string) error {
+	return func(s string) error {
 		sp.linesRead++
 		if sp.linesRead == n {
 			cancel()
 		}
+
+		return nil
 	}
 }
 
-func (sp *spyProcessor) increaseLinesRead(s string) {
+func (sp *spyProcessor) increaseLinesRead(s string) error {
 	sp.linesRead++
-}
 
-func TestStopReadingWhenALineIsANonExactlyNineDecimalDigits(t *testing.T) {
-	type caseDescriptor struct {
-		name string
-		data string
-	}
-
-	cases := []caseDescriptor{
-		{name: "Less than 9 digits", data: "123456"},
-		{name: "Alphanumeric", data: "1234ADD56"},
-		{name: "Empty", data: ""},
-	}
-
-	for _, c := range cases {
-		spy := spyProcessor{}
-		handler := server.NewHandler(spy.increaseLinesRead)
-
-		dataWithAnAlphanumericLine := bytes.NewBuffer([]byte(fmt.Sprintf("123456789\n%s\n123456789\n", c.data)))
-		handler.ReadLines(context.TODO(), dataWithAnAlphanumericLine)
-
-		require.Equal(t, 1, spy.linesRead, c.name)
-	}
+	return nil
 }
 
 func TestStopReadingWhenATerminateSequenceIsReceived(t *testing.T) {

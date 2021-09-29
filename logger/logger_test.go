@@ -2,6 +2,7 @@ package logger_test
 
 import (
 	"errors"
+	"io"
 	"os"
 	"testing"
 
@@ -43,6 +44,55 @@ func TestInstanceLoggerClearsAnExistentLogFile(t *testing.T) {
 	stat, err := file.Stat()
 	require.NoError(t, err)
 	require.Equal(t, int64(0), stat.Size())
+}
+
+func TestOnlyNumbersMayBeWrittenToTheLogFile(t *testing.T) {
+	t.Cleanup(tearDown)
+
+	l := logger.New()
+
+	t.Run("Alphanumeric", func(t *testing.T) {
+		err := l.OnlyNumbers("Aca2321")
+		require.ErrorIs(t, err, logger.ErrNonExactDecimalDigitsNumber)
+	})
+
+	t.Run("SpecialChars", func(t *testing.T) {
+		err := l.OnlyNumbers("123 12-3")
+		require.ErrorIs(t, err, logger.ErrNonExactDecimalDigitsNumber)
+	})
+
+	t.Run("OnlyDecimals", func(t *testing.T) {
+		err := l.OnlyNumbers("123456789")
+		require.NoError(t, err)
+	})
+}
+
+func TestEachNumberMustBeFollowedByAServerNativeNewlineSequence(t *testing.T) {
+	t.Cleanup(tearDown)
+
+	l := logger.New()
+
+	err := l.OnlyNumbers("123456789")
+	require.NoError(t, err)
+
+	content, err := readLogFileContent()
+	require.NoError(t, err)
+
+	require.Equal(t, "123456789\n", string(content))
+}
+
+func readLogFileContent() ([]byte, error) {
+	f, err := os.Open(logFilename)
+	if err != nil {
+		return nil, err
+	}
+
+	content, err := io.ReadAll(f)
+	if err != nil {
+		return nil, err
+	}
+
+	return content, nil
 }
 
 func createLogFilePreFilled() (*os.File, error) {

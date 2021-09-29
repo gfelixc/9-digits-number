@@ -2,21 +2,21 @@ package server
 
 import (
 	"context"
+	"errors"
 	"io"
-	"regexp"
+
+	"github.com/gfelixc/gigapipe/logger"
 )
 
 const (
 	terminateKeyword = "terminate"
 )
 
-var exactlyNineDecimalDigitsPattern = regexp.MustCompile(`^[0-9]{9}?`)
-
 type Handler struct {
-	processor func(s string)
+	processor func(s string) error
 }
 
-func NewHandler(processor func(s string)) *Handler {
+func NewHandler(processor func(s string) error) *Handler {
 	return &Handler{
 		processor: processor,
 	}
@@ -39,11 +39,14 @@ func (h Handler) ReadLines(ctx context.Context, incomingData io.Reader) {
 				return
 			}
 
-			if !exactlyNineDecimalDigitsPattern.MatchString(line) {
+			err := h.processor(line)
+			if errors.Is(err, logger.ErrNonExactDecimalDigitsNumber) {
 				return
 			}
 
-			h.processor(line)
+			if err != nil {
+				println("unable to process line", err.Error())
+			}
 		}
 	}
 }

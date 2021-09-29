@@ -1,6 +1,7 @@
 package logger
 
 import (
+	"errors"
 	"fmt"
 	"os"
 	"regexp"
@@ -11,7 +12,11 @@ type Logger struct {
 	file *os.File
 }
 
-var exactlyNineDecimalDigitsPattern = regexp.MustCompile(`^[0-9]{9}?`)
+var (
+	exactNineDecimalDigitsNumber = regexp.MustCompile(`^[0-9]{9}$`)
+
+	ErrNonExactDecimalDigitsNumber = errors.New("only decimal digits are allowed")
+)
 
 const (
 	newlineSequence = "\n"
@@ -27,6 +32,10 @@ func New() Logger {
 }
 
 func (l Logger) OnlyNumbers(s string) error {
+	if !exactNineDecimalDigitsNumber.MatchString(s) {
+		return ErrNonExactDecimalDigitsNumber
+	}
+
 	leftZerosStripped := strings.TrimLeft(s, "0")
 
 	_, err := l.file.Write([]byte(leftZerosStripped + newlineSequence))
