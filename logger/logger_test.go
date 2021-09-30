@@ -81,6 +81,23 @@ func TestEachNumberMustBeFollowedByAServerNativeNewlineSequence(t *testing.T) {
 	require.Equal(t, "123456789\n", string(content))
 }
 
+func TestNoDuplicateNumbersMayBeWrittenToTheLogFile(t *testing.T) {
+	t.Cleanup(tearDown)
+
+	l := logger.New()
+
+	err := l.OnlyNumbers("123456789")
+	require.NoError(t, err)
+
+	err = l.OnlyNumbers("123456789")
+	require.ErrorIs(t, err, logger.ErrDuplicatedNumber)
+
+	content, err := readLogFileContent()
+	require.NoError(t, err)
+
+	require.Equal(t, "123456789\n", string(content))
+}
+
 func readLogFileContent() ([]byte, error) {
 	f, err := os.Open(logFilename)
 	if err != nil {
