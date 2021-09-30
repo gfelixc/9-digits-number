@@ -1,10 +1,13 @@
 package logger_test
 
 import (
+	"bytes"
 	"errors"
+	"fmt"
 	"io"
 	"os"
 	"testing"
+	"time"
 
 	"github.com/gfelixc/gigapipe/logger"
 	"github.com/stretchr/testify/require"
@@ -21,6 +24,28 @@ func tearDown() {
 	if err != nil {
 		println("unable to remove log file: ", err.Error())
 	}
+}
+
+func Test200KNumbersPerSecond(t *testing.T) {
+	t.Cleanup(tearDown)
+
+	timeout := time.After(1 * time.Second)
+	l := logger.New()
+
+	go func() {
+		for i := 0; i <= 200_000; i++ {
+			_ = l.OnlyNumbers(fmt.Sprintf("%09d", i))
+		}
+	}()
+
+	<-timeout
+
+	require.NoError(t, l.Flush())
+
+	linesInLogFile, err := countLinesInLogFile()
+	require.NoError(t, err)
+
+	require.Equal(t, 200_000, linesInLogFile)
 }
 
 func TestInstanceLoggerCreatesALogFile(t *testing.T) {
@@ -137,4 +162,14 @@ func logFileExists() bool {
 	}
 
 	return true
+}
+
+func countLinesInLogFile() (int, error) {
+	content, err := readLogFileContent()
+	if err != nil {
+		return 0, err
+	}
+
+	lines := bytes.Count(content, []byte("\n"))
+	return lines, nil
 }
