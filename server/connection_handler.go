@@ -9,10 +9,10 @@ import (
 )
 
 type ReadAndLogLines struct {
-	logger *logger.Logger
+	logger *logger.LoggerInstrumented
 }
 
-func NewReadAndLogLines(logger *logger.Logger) *ReadAndLogLines {
+func NewReadAndLogLines(logger *logger.LoggerInstrumented) *ReadAndLogLines {
 	return &ReadAndLogLines{logger: logger}
 }
 

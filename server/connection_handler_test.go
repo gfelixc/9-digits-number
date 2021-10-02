@@ -13,13 +13,13 @@ import (
 
 type components struct {
 	handler       *ReadAndLogLines
-	logger        *logger.Logger
+	logger        *logger.LoggerInstrumented
 	logWriterMock *bytes.Buffer
 }
 
 func setup() components {
 	w := new(bytes.Buffer)
-	l := logger.New(w)
+	l := logger.NewLoggerInstrumented(logger.New(w))
 	h := NewReadAndLogLines(l)
 	return components{
 		handler:       h,
