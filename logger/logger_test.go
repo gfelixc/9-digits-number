@@ -2,79 +2,34 @@ package logger_test
 
 import (
 	"bytes"
-	"errors"
-	"fmt"
-	"io"
-	"os"
 	"testing"
-	"time"
 
 	"github.com/gfelixc/gigapipe/logger"
 	"github.com/stretchr/testify/require"
 )
 
-var logFilename = "numbers.log"
+const (
+	validNumber        = "123456789"
+	validNumberLogLine = "123456789\n"
+)
 
-func tearDown() {
-	err := os.Remove(logFilename)
-	if errors.Is(err, os.ErrNotExist) {
-		return
-	}
+func TestShutdownDumpsInMemoryNumbersToLogWriter(t *testing.T) {
+	var buf bytes.Buffer
 
-	if err != nil {
-		println("unable to remove log file: ", err.Error())
-	}
-}
+	l := logger.New(&buf)
+	_ = l.OnlyNumbers(validNumber)
+	l.Shutdown()
 
-func Test200KNumbersPerSecond(t *testing.T) {
-	t.Cleanup(tearDown)
-
-	timeout := time.After(1 * time.Second)
-	l := logger.New()
-
-	go func() {
-		for i := 0; i <= 200_000; i++ {
-			_ = l.OnlyNumbers(fmt.Sprintf("%09d", i))
-		}
-	}()
-
-	<-timeout
-
-	require.NoError(t, l.Flush())
-
-	linesInLogFile, err := countLinesInLogFile()
-	require.NoError(t, err)
-
-	require.Equal(t, 200_000, linesInLogFile)
-}
-
-func TestInstanceLoggerCreatesALogFile(t *testing.T) {
-	t.Cleanup(tearDown)
-
-	require.False(t, logFileExists())
-
-	logger.New()
-
-	require.True(t, logFileExists())
-}
-
-func TestInstanceLoggerClearsAnExistentLogFile(t *testing.T) {
-	t.Cleanup(tearDown)
-
-	file, err := createLogFilePreFilled()
-	require.NoError(t, err)
-
-	logger.New()
-
-	stat, err := file.Stat()
-	require.NoError(t, err)
-	require.Equal(t, int64(0), stat.Size())
+	require.Equal(t, validNumberLogLine, buf.String())
 }
 
 func TestOnlyNumbersMayBeWrittenToTheLogFile(t *testing.T) {
-	t.Cleanup(tearDown)
+	var buf bytes.Buffer
 
-	l := logger.New()
+	l := logger.New(&buf)
+	defer func() {
+		l.Shutdown()
+	}()
 
 	t.Run("Alphanumeric", func(t *testing.T) {
 		err := l.OnlyNumbers("Aca2321")
@@ -87,89 +42,56 @@ func TestOnlyNumbersMayBeWrittenToTheLogFile(t *testing.T) {
 	})
 
 	t.Run("OnlyDecimals", func(t *testing.T) {
-		err := l.OnlyNumbers("123456789")
+		err := l.OnlyNumbers(validNumber)
 		require.NoError(t, err)
 	})
 }
 
 func TestEachNumberMustBeFollowedByAServerNativeNewlineSequence(t *testing.T) {
-	t.Cleanup(tearDown)
+	var buf bytes.Buffer
 
-	l := logger.New()
+	l := logger.New(&buf)
+	_ = l.OnlyNumbers(validNumber)
+	l.Shutdown()
 
-	err := l.OnlyNumbers("123456789")
-	require.NoError(t, err)
-
-	content, err := readLogFileContent()
-	require.NoError(t, err)
-
-	require.Equal(t, "123456789\n", string(content))
+	require.Equal(t, validNumberLogLine, buf.String())
 }
 
-func TestNoDuplicateNumbersMayBeWrittenToTheLogFile(t *testing.T) {
-	t.Cleanup(tearDown)
+func TestTerminateSequenceReturnsErrTerminateSequenceDetected(t *testing.T) {
+	var buf bytes.Buffer
 
-	l := logger.New()
+	l := logger.New(&buf)
+	defer func() {
+		l.Shutdown()
+	}()
 
-	err := l.OnlyNumbers("123456789")
-	require.NoError(t, err)
+	_ = l.OnlyNumbers(validNumber)
 
-	err = l.OnlyNumbers("123456789")
+	err := l.OnlyNumbers("terminate")
+	require.ErrorIs(t, err, logger.ErrTerminateSequenceDetected)
+}
+
+func TestDuplicatedNumbersReturnsErrDuplicatedNumber(t *testing.T) {
+	var buf bytes.Buffer
+
+	l := logger.New(&buf)
+	defer func() {
+		l.Shutdown()
+	}()
+
+	_ = l.OnlyNumbers(validNumber)
+
+	err := l.OnlyNumbers(validNumber)
 	require.ErrorIs(t, err, logger.ErrDuplicatedNumber)
-
-	content, err := readLogFileContent()
-	require.NoError(t, err)
-
-	require.Equal(t, "123456789\n", string(content))
 }
 
-func readLogFileContent() ([]byte, error) {
-	f, err := os.Open(logFilename)
-	if err != nil {
-		return nil, err
-	}
+func TestNoDuplicatedNumbersMayBeWrittenToTheLogFile(t *testing.T) {
+	var buf bytes.Buffer
 
-	content, err := io.ReadAll(f)
-	if err != nil {
-		return nil, err
-	}
+	l := logger.New(&buf)
+	_ = l.OnlyNumbers(validNumber)
+	_ = l.OnlyNumbers(validNumber)
+	l.Shutdown()
 
-	return content, nil
-}
-
-func createLogFilePreFilled() (*os.File, error) {
-	file, err := os.Create(logFilename)
-	if err != nil {
-		return nil, err
-	}
-
-	_, err = file.WriteString("lorem ipsum")
-	if err != nil {
-		return nil, err
-	}
-
-	err = file.Sync()
-	if err != nil {
-		return nil, err
-	}
-
-	return file, nil
-}
-
-func logFileExists() bool {
-	if _, err := os.Stat(logFilename); os.IsNotExist(err) {
-		return false
-	}
-
-	return true
-}
-
-func countLinesInLogFile() (int, error) {
-	content, err := readLogFileContent()
-	if err != nil {
-		return 0, err
-	}
-
-	lines := bytes.Count(content, []byte("\n"))
-	return lines, nil
+	require.Equal(t, validNumberLogLine, buf.String())
 }

@@ -1,4 +1,4 @@
-package server_test
+package server
 
 import (
 	"context"
@@ -6,43 +6,69 @@ import (
 	"testing"
 	"time"
 
-	"github.com/gfelixc/gigapipe/server"
 	"github.com/stretchr/testify/require"
 )
 
+func TestServerShutdownsWaitForHandlers(t *testing.T) {
+	ctx, cancel := context.WithTimeout(context.Background(), 300*time.Millisecond)
+	defer cancel()
+
+	spy := spyConnectionHandler{holdConnections: 1 * time.Second}
+
+	s := New(spy.countConnectionsAndHoldIt)
+	go startNConcurrentClients(3)
+
+	_ = s.Start(ctx)
+
+	require.Greater(t, spy.connectedClients, 0)
+	require.Equal(t, spy.connectedClients, spy.handlersDone)
+}
+
+func TestServerShutdownsWhenContextIsDone(t *testing.T) {
+	ctx, cancel := context.WithTimeout(context.Background(), 300*time.Millisecond)
+	defer cancel()
+
+	s := New(func(_ context.Context, _ net.Conn) error { return nil })
+	err := s.Start(ctx)
+
+	require.ErrorIs(t, err, context.DeadlineExceeded)
+}
+
 func Test5MaximumConcurrentClients(t *testing.T) {
-	ctx, cancelCTX := context.WithTimeout(context.Background(), 2*time.Second)
+	ctx, cancelCTX := context.WithTimeout(context.Background(), 1*time.Second)
 	defer cancelCTX()
 
-	var connectedClients int
+	spy := spyConnectionHandler{holdConnections: 10 * time.Second}
 
-	handler := func(conn net.Conn) {
-		connectedClients++
+	s := New(spy.countConnectionsAndHoldIt)
 
-		// do work
-		time.Sleep(10 * time.Second)
-	}
-
-	setupAndRunServer(ctx, handler)
-
-	for i := 0; i < 50; i++ {
-		go func() {
-			_, _ = net.Dial("tcp", ":4000")
-		}()
-	}
+	go s.Start(ctx)
+	startNConcurrentClients(50)
 
 	<-ctx.Done()
 
-	require.Equal(t, 5, connectedClients)
+	require.Equal(t, 5, spy.connectedClients)
 }
 
-func setupAndRunServer(ctx context.Context, handler func(conn net.Conn)) {
-	s := server.New()
-	s.AddHandler(handler)
 
-	go func() {
-		_ = s.Start(ctx)
-	}()
+func startNConcurrentClients(n int) {
+	for i := 0; i < n; i++ {
+		_, _ = net.Dial("tcp", ":4000")
+	}
+}
 
-	time.Sleep(500 * time.Millisecond)
+type spyConnectionHandler struct {
+	connectedClients int
+	handlersDone     int
+	holdConnections  time.Duration
+}
+
+func (s *spyConnectionHandler) countConnectionsAndHoldIt(_ context.Context, _ net.Conn) error {
+	s.connectedClients++
+
+	time.Sleep(s.holdConnections)
+
+	s.handlersDone++
+
+	return nil
 }

@@ -2,7 +2,7 @@ package logger
 
 import (
 	"errors"
-	"os"
+	"io"
 	"regexp"
 	"strings"
 	"sync"
@@ -10,10 +10,11 @@ import (
 )
 
 type Logger struct {
-	file *os.File
+	logWriter io.Writer
 
-	writerBatch    []string
-	writerBatchMux *sync.Mutex
+	ticker            *time.Ticker
+	pendingToWrite    []string
+	pendingToWriteMux *sync.Mutex
 
 	index    map[string]struct{}
 	indexMux *sync.Mutex
@@ -24,64 +25,66 @@ var (
 
 	ErrDuplicatedNumber            = errors.New("duplicated number")
 	ErrNonExactDecimalDigitsNumber = errors.New("only decimal digits are allowed")
+	ErrTerminateSequenceDetected   = errors.New("terminate sequence detected")
 )
 
 const (
-	newlineSequence = "\n"
-	logFilename     = "numbers.log"
+	terminateSequence   = "terminate"
+	frequencyOfWritings = 1 * time.Second
+	newlineSequence     = "\n"
 )
 
-func New() Logger {
-	file, _ := os.Create(logFilename)
-
-	logger := Logger{
-		writerBatchMux: &sync.Mutex{},
-		index:          make(map[string]struct{}),
-		indexMux:       &sync.Mutex{},
-		file:           file,
+// New returns a Logger which triggers a go routine to write the data in memory
+// to the logWriter every (logger.frequencyOfWritings duration)
+// In order to prevent data loss, Logger.Shutdown() MUST be called during graceful shutdown
+func New(logWriter io.Writer) *Logger {
+	logger := &Logger{
+		ticker:            time.NewTicker(frequencyOfWritings),
+		pendingToWriteMux: &sync.Mutex{},
+		index:             make(map[string]struct{}),
+		indexMux:          &sync.Mutex{},
+		logWriter:         logWriter,
 	}
 
-	go logger.writeBatchInFile()
+	go logger.writeBatchInLogFileRecurrently()
 
 	return logger
 }
 
-func (l *Logger) Flush() error {
+func (l *Logger) Shutdown() {
+	l.ticker.Stop()
 	l.writeBatch()
-
-	if err := l.file.Sync(); err != nil {
-		return err
-	}
-
-	return l.file.Close()
 }
 
 func (l *Logger) writeBatch() {
-	l.writerBatchMux.Lock()
-	defer l.writerBatchMux.Unlock()
+	l.pendingToWriteMux.Lock()
+	defer l.pendingToWriteMux.Unlock()
 
-	content := strings.Join(l.writerBatch, newlineSequence)
-
-	_, err := l.file.Write([]byte(content))
-	if err != nil {
-		println(err.Error())
+	if len(l.pendingToWrite) == 0 {
 		return
 	}
 
-	l.writerBatch = nil
+	content := strings.Join(l.pendingToWrite, newlineSequence)
 
-	return
+	_, err := l.logWriter.Write([]byte(content + newlineSequence))
+	if err != nil {
+		return
+	}
+
+	l.pendingToWrite = nil
 }
 
-func (l *Logger) addToBatch(s string) error {
-	l.writerBatchMux.Lock()
-	l.writerBatch = append(l.writerBatch, s)
-	l.writerBatchMux.Unlock()
-
-	return nil
+func (l *Logger) addToBatch(s string) {
+	l.pendingToWriteMux.Lock()
+	l.pendingToWrite = append(l.pendingToWrite, s)
+	l.pendingToWriteMux.Unlock()
 }
 
 func (l *Logger) OnlyNumbers(s string) error {
+	if s == terminateSequence {
+		return ErrTerminateSequenceDetected
+	}
+
 	if !exactNineDecimalDigitsNumber.MatchString(s) {
 		return ErrNonExactDecimalDigitsNumber
 	}
@@ -95,26 +98,16 @@ func (l *Logger) OnlyNumbers(s string) error {
 		return ErrDuplicatedNumber
 	}
 
-	err := l.addToBatch(s)
-	if err != nil {
-		return err
-	}
-	// _, err := l.file.Write([]byte(leftZerosStripped + newlineSequence))
-
-	// if err != nil {
-	// 	return fmt.Errorf("error writing the log file: %w", err)
-	// }
+	l.addToBatch(s)
 
 	l.index[leftZerosStripped] = struct{}{}
 
 	return nil
 }
 
-func (l *Logger) writeBatchInFile() {
+func (l *Logger) writeBatchInLogFileRecurrently() {
 	go func() {
-		timer := time.Tick(1 * time.Second)
-		for {
-			<- timer
+		for _, channelIsOpen := <-l.ticker.C; channelIsOpen; {
 			l.writeBatch()
 		}
 	}()
