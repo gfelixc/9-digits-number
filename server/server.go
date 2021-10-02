@@ -50,7 +50,6 @@ func (s *Server) Start(ctx context.Context) error {
 			_ = l.Close()
 
 			return ctx.Err()
-
 		case conn := <-s.incomingConnections:
 			go s.handleConnectionWithinWaitGroup(ctx, cancel, conn)
 		}

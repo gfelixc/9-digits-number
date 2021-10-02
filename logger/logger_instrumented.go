@@ -24,6 +24,9 @@ func NewLoggerInstrumented(logger *Logger) *LoggerInstrumented {
 		reportTicker: time.NewTicker(reportFrequency),
 		Logger:       logger,
 	}
+
+	go l.printReportFrequently()
+
 	return l
 }
 
@@ -63,4 +66,11 @@ func (i *LoggerInstrumented) printReport() {
 		deltaDuplicatedNumbers,
 		atomic.LoadUint32(&i.uniqueNumbersCounter),
 	)
+}
+
+func (i *LoggerInstrumented) printReportFrequently() {
+	for {
+		<- i.reportTicker.C
+		i.printReport()
+	}
 }

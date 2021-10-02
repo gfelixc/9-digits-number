@@ -30,7 +30,7 @@ var (
 
 const (
 	terminateSequence   = "terminate"
-	frequencyOfWritings = 1 * time.Second
+	frequencyOfWritings = 5 * time.Second
 	newlineSequence     = "\n"
 )
 
@@ -107,7 +107,11 @@ func (l *Logger) OnlyNumbers(s string) error {
 
 func (l *Logger) writeBatchInLogFileRecurrently() {
 	go func() {
-		for _, channelIsOpen := <-l.ticker.C; channelIsOpen; {
+		for  {
+			_, channelIsOpen := <-l.ticker.C;
+			if !channelIsOpen {
+				return
+			}
 			l.writeBatch()
 		}
 	}()
