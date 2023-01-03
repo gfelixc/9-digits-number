@@ -1,4 +1,4 @@
-module github.com/gfelixc/gigapipe
+module github.com/gfelixc/9-digits-number
 
 go 1.17
 

@@ -7,7 +7,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/gfelixc/gigapipe/logger"
+	"github.com/gfelixc/9-digits-number/logger"
 	"github.com/stretchr/testify/require"
 )
 
@@ -73,7 +73,6 @@ func TestReturnsNilErrWhenErrNonExactDecimalDigitsNumber(t *testing.T) {
 	require.NoError(t, err)
 }
 
-
 func TestReturnsErrWhenErrTerminateSequenceDetected(t *testing.T) {
 	connA, connB := net.Pipe()
 
@@ -86,7 +85,7 @@ func TestReturnsErrWhenErrTerminateSequenceDetected(t *testing.T) {
 	require.ErrorIs(t, err, logger.ErrTerminateSequenceDetected)
 }
 
-func wait100msWriteData(data []byte, connB net.Conn)  {
+func wait100msWriteData(data []byte, connB net.Conn) {
 	go func() {
 		time.Sleep(100 * time.Millisecond)
 
@@ -94,7 +93,7 @@ func wait100msWriteData(data []byte, connB net.Conn)  {
 	}()
 }
 
-func wait100msWriteDataAndCloseConnections(data []byte, connA net.Conn, connB net.Conn)  {
+func wait100msWriteDataAndCloseConnections(data []byte, connA net.Conn, connB net.Conn) {
 	go func() {
 		time.Sleep(100 * time.Millisecond)
 

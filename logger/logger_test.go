@@ -4,7 +4,7 @@ import (
 	"bytes"
 	"testing"
 
-	"github.com/gfelixc/gigapipe/logger"
+	"github.com/gfelixc/9-digits-number/logger"
 	"github.com/stretchr/testify/require"
 )
 

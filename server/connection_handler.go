@@ -5,7 +5,7 @@ import (
 	"errors"
 	"net"
 
-	"github.com/gfelixc/gigapipe/logger"
+	"github.com/gfelixc/9-digits-number/logger"
 )
 
 type ReadAndLogLines struct {

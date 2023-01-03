@@ -107,8 +107,8 @@ func (l *Logger) OnlyNumbers(s string) error {
 
 func (l *Logger) writeBatchInLogFileRecurrently() {
 	go func() {
-		for  {
-			_, channelIsOpen := <-l.ticker.C;
+		for {
+			_, channelIsOpen := <-l.ticker.C
 			if !channelIsOpen {
 				return
 			}

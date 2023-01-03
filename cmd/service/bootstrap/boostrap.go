@@ -4,8 +4,8 @@ import (
 	"context"
 	"os"
 
-	"github.com/gfelixc/gigapipe/logger"
-	"github.com/gfelixc/gigapipe/server"
+	"github.com/gfelixc/9-digits-number/logger"
+	"github.com/gfelixc/9-digits-number/server"
 )
 
 const LogFilename = "numbers.log"

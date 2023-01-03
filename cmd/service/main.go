@@ -7,7 +7,7 @@ import (
 	"os/signal"
 	"syscall"
 
-	"github.com/gfelixc/gigapipe/cmd/service/bootstrap"
+	"github.com/gfelixc/9-digits-number/cmd/service/bootstrap"
 )
 
 func main() {
